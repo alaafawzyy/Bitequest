@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "424394340964",
+    "project_id": "bitequest-22148",
+    "storage_bucket": "bitequest-22148.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:424394340964:android:69bd0e9effc7d03d433d71",
+        "android_client_info": {
+          "package_name": "com.example.bitequest"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAmieaPZaITsHeQfO09Ri_KuUSfwCe609A"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
