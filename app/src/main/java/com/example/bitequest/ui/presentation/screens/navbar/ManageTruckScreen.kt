@@ -20,6 +20,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.app.ActivityCompat
 import androidx.navigation.NavHostController
+import com.example.bitequest.ui.presentation.navigation.Screen
 import com.example.bitequest.ui.theme.backgroundColor
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationServices
@@ -41,6 +42,7 @@ fun ManageTruckScreen(navController: NavHostController) {
     var menu by remember { mutableStateOf(sharedPreferences.getString("menu", "") ?: "") }
     var operatingHours by remember { mutableStateOf(sharedPreferences.getString("operatingHours", "") ?: "") }
     var errorMessage by remember { mutableStateOf<String?>(null) }
+    val auth = FirebaseAuth.getInstance()
 
     // Fused Location Client
     val fusedLocationClient = remember { LocationServices.getFusedLocationProviderClient(context) }
@@ -90,10 +92,11 @@ fun ManageTruckScreen(navController: NavHostController) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .background(backgroundColor),
+            .verticalScroll(rememberScrollState()) // التمرير هنا
+            .background(backgroundColor)
+            .padding(top = 16.dp, bottom = 50.dp, start = 16.dp, end = 16.dp), // إضافة padding لتجنب قطع المحتوى
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
+        verticalArrangement = Arrangement.Top // تغيير الترتيب إلى الأعلى
     ) {
         Spacer(modifier = Modifier.height(16.dp))
 
@@ -158,22 +161,28 @@ fun ManageTruckScreen(navController: NavHostController) {
             value = "${if (latitude != 0.0 && longitude != 0.0) "$latitude, $longitude" else ""}",
             onValueChange = {}, // Disabled input
             label = { Text("Current Location") },
-            enabled = false, // Disable editing
+            readOnly = true, // Use readOnly instead of enabled = false
             colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = Color(0xFFFFD700),
-                unfocusedBorderColor = Color(0xFFFFD700).copy(alpha = 0.5f),
-                focusedLabelColor = Color(0xFFFFD700),
-                unfocusedLabelColor = Color(0xFFFFD700).copy(alpha = 0.5f),
-                focusedTextColor = Color(0xFFFFD700),
-                unfocusedTextColor = Color(0xFFFFD700).copy(alpha = 0.8f)
+                focusedBorderColor = Color.White,
+                unfocusedBorderColor = Color.White.copy(alpha = 0.5f),
+                focusedLabelColor = Color.White,
+                unfocusedLabelColor = Color.White.copy(alpha = 0.5f),
+                focusedTextColor = Color.White,
+                unfocusedTextColor = Color.White.copy(alpha = 0.8f)
             ),
-            modifier = Modifier.fillMaxWidth().padding(16.dp)
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
         )
 
         Spacer(modifier = Modifier.height(16.dp))
 
         // Get Current Location Button
         Button(
+            colors = ButtonDefaults.buttonColors(
+                containerColor = Color(0xFFFFD700),
+                contentColor = Color.White
+            ),
             onClick = {
                 if (ActivityCompat.checkSelfPermission(context,android.Manifest.permission.ACCESS_FINE_LOCATION) !=
                     PackageManager.PERMISSION_GRANTED
@@ -190,7 +199,6 @@ fun ManageTruckScreen(navController: NavHostController) {
                     }
                 }
             },
-            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFFD700)),
             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
         ) {
             Text("Get Current Location")
@@ -200,6 +208,10 @@ fun ManageTruckScreen(navController: NavHostController) {
 
         // Save/Update Button
         Button(
+            colors = ButtonDefaults.buttonColors(
+                containerColor = Color(0xFFFFD700),
+                contentColor = Color.White
+            ),
             onClick = {
                 if (name.isEmpty() || menu.isEmpty() || operatingHours.isEmpty() || latitude == 0.0 || longitude == 0.0) {
                     errorMessage = "Please fill in all fields and select a location."
@@ -222,7 +234,6 @@ fun ManageTruckScreen(navController: NavHostController) {
                             truckId = docRef.id
                             saveToSharedPreferences(context, Truck(truckId!!, name, latitude, longitude, menu, operatingHours))
                             Toast.makeText(context,"Truck added successfully",Toast.LENGTH_LONG).show()
-                            //navController.popBackStack()
                         }
                         .addOnFailureListener { e ->
                             errorMessage = "Error adding truck: ${e.message}"
@@ -233,21 +244,34 @@ fun ManageTruckScreen(navController: NavHostController) {
                         .addOnSuccessListener {
                             saveToSharedPreferences(context, Truck(truckId, name, latitude, longitude, menu, operatingHours))
                             Toast.makeText(context,"Truck updated successfully",Toast.LENGTH_LONG).show()
-                            //navController.popBackStack()
                         }
                         .addOnFailureListener { e ->
                             errorMessage = "Error updating truck: ${e.message}"
                         }
                 }
             },
-            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFFD700)),
             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
         ) {
             Text(if (truckId.isEmpty()) "Save Truck" else "Update Truck")
         }
+
+
+        Spacer(modifier = Modifier.height(30.dp))
+        Button(
+            onClick = {
+                auth.signOut() // Sign out the user from Firebase
+                navController.popBackStack() // Navigate back to login screen or home screen
+                navController.navigate(Screen.Login.route) // Navigate to Login Screen
+            },
+            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFFD700)),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
+        ) {
+            Text("Logout")
+        }
+        Spacer(modifier = Modifier.height(50.dp))
+
     }
 }
-
 // Fetch current location
 @SuppressLint("MissingPermission")
 fun getCurrentLocation(client: FusedLocationProviderClient, onLocationReceived: (Location?) -> Unit) {
