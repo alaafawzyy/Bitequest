@@ -5,12 +5,13 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
 
+
 sealed class Screen(val route: String, val label: String, val icon: androidx.compose.ui.graphics.vector.ImageVector) {
     object Home : Screen("home", "Home", Icons.Default.Home)
     object Login : Screen("login", "Login", Icons.Outlined.Login)
     object Register : Screen("register", "Register", Icons.Default.PersonAdd)
 
-    // تعريف المسار مع مكان لـ truckId
+
     object TruckDetails : Screen("truck_details/{truckId}", "Truck Details", Icons.Default.Info) {
         fun createRoute(truckId: String) = "truck_details/$truckId"
     }
@@ -20,4 +21,7 @@ sealed class Screen(val route: String, val label: String, val icon: androidx.com
     }
 
     object ManageTruck : Screen("manage_truck", "Manage Truck", Icons.Default.Edit)
+    object TruckOrders : Screen("truck_orders/{truckId}", "Truck Orders", Icons.Default.List) {
+        fun createRoute(truckId: String) = "truck_orders/$truckId"
+    }
 }

@@ -1,5 +1,8 @@
 package com.example.bitequest.ui.presentation.screens.client
 
+import android.content.Context
+import android.util.Log
+import android.widget.Toast
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -12,7 +15,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -23,6 +26,8 @@ import com.example.bitequest.ui.presentation.navigation.Screen
 import com.example.bitequest.ui.theme.backgroundColor
 import com.example.bitequest.ui.theme.darkPink40
 import com.google.android.gms.maps.model.LatLng
+import com.google.firebase.Timestamp
+import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.tasks.await
 import java.text.SimpleDateFormat
@@ -33,9 +38,37 @@ fun TruckDetailsScreen(navController: NavHostController, truckId: String) {
     val db = FirebaseFirestore.getInstance()
     var truck by remember { mutableStateOf<FoodTruck?>(null) }
     var reviews by remember { mutableStateOf<List<Review>>(emptyList()) }
+    var customerName by remember { mutableStateOf("") }
     var errorMessage by remember { mutableStateOf<String?>(null) }
+    val currentUser = FirebaseAuth.getInstance().currentUser
+    var hasReviewed by remember { mutableStateOf(false) }
+    var showOrderInput by remember { mutableStateOf(false) }
+    var orderText by remember { mutableStateOf("") }
+    var orderSuccess by remember { mutableStateOf<String?>(null) }
+    var orderError by remember { mutableStateOf<String?>(null) }
+    var refreshTrigger by remember { mutableStateOf(false) }
+    var isAdmin by remember { mutableStateOf(false) }
+    val context= LocalContext.current
+    LaunchedEffect(currentUser) {
+        if (currentUser != null) {
 
-    LaunchedEffect(truckId) {
+            val userDoc = db.collection("usernames")
+                .whereEqualTo("uid", currentUser.uid)
+                .get()
+                .await()
+                .documents
+                .firstOrNull()
+            Log.e("TruckDetailsScreen", "User document: $userDoc")
+            if (userDoc != null && userDoc.exists()) {
+                isAdmin = userDoc.getString("role") == "Admin"
+                println("User role: ${userDoc.getString("role")}")
+            } else {
+                isAdmin = false
+                println("User document not found")
+            }
+        }
+    }
+    LaunchedEffect(truckId, refreshTrigger) { // أضف refreshTrigger كـ key
         if (truckId.isNotEmpty()) {
             try {
                 val doc = db.collection("foodTrucks").document(truckId).get().await()
@@ -55,9 +88,12 @@ fun TruckDetailsScreen(navController: NavHostController, truckId: String) {
                     reviews = reviewDocs.mapNotNull { reviewDoc ->
                         try {
                             Review(
+                                reviewId = reviewDoc.id,
                                 rating = reviewDoc.getDouble("rating")?.toInt() ?: 0,
                                 comment = reviewDoc.getString("comment") ?: "No comment",
-                                timestamp = reviewDoc.getDate("timestamp")?.time ?: System.currentTimeMillis()
+                                timestamp = reviewDoc.getDate("timestamp")?.time ?: System.currentTimeMillis(),
+                                userId = reviewDoc.getString("userId") ?: "",
+                                userName = reviewDoc.getString("userName") ?: "Anonymous"
                             )
                         } catch (e: Exception) {
                             null
@@ -65,6 +101,9 @@ fun TruckDetailsScreen(navController: NavHostController, truckId: String) {
                     }
                 } else {
                     errorMessage = "Truck not found."
+                }
+                if (currentUser != null) {
+                    hasReviewed = reviews.any { it.userId == currentUser.uid }
                 }
             } catch (e: Exception) {
                 errorMessage = "Error loading truck details: ${e.message}"
@@ -99,7 +138,7 @@ fun TruckDetailsScreen(navController: NavHostController, truckId: String) {
                 LazyColumn(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .weight(1f) // Take remaining space
+                        .weight(1f)
                 ) {
                     item {
                         Spacer(modifier = Modifier.height(30.dp))
@@ -138,13 +177,137 @@ fun TruckDetailsScreen(navController: NavHostController, truckId: String) {
 
                         Text(text = "Operating Hours:", style = MaterialTheme.typography.titleMedium)
                         Text(
-                            text = "${truck!!.operatingHours} h",
+                            text = "${truck!!.operatingHours}",
                             style = MaterialTheme.typography.bodyMedium,
                             color = darkPink40,
                             modifier = Modifier.padding(8.dp)
                         )
                         Divider(color = Color.Gray, thickness = 1.dp, modifier = Modifier.padding(vertical = 8.dp))
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Button(
+                            colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFFFFD700),
+                            contentColor = Color.White
+                        ),
+                            onClick = { showOrderInput = true },
+                            modifier = Modifier.align(Alignment.CenterHorizontally).fillMaxSize()
+                                .padding(start = 20.dp, end = 20.dp)
+                                                    ) {
+                            Text("make an order")
+                        }
+                        if (showOrderInput) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp)
+                            ) {
+                                OutlinedTextField(
+                                    value = customerName,
+                                    onValueChange = { customerName = it },
+                                    label = { Text("Your Name") },
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedBorderColor = backgroundColor,
+                                        unfocusedBorderColor = backgroundColor.copy(alpha = 0.5f),
+                                        focusedLabelColor = backgroundColor,
+                                        unfocusedLabelColor = backgroundColor.copy(alpha = 0.5f),
+                                        focusedTextColor = backgroundColor,
+                                        unfocusedTextColor = backgroundColor.copy(alpha = 0.8f)
+                                    ),
+                                    modifier = Modifier.fillMaxWidth().padding(16.dp)
+                                )
+
+                                Spacer(modifier = Modifier.height(8.dp))
+
+                                OutlinedTextField(
+                                    value = orderText,
+                                    onValueChange = { orderText = it },
+                                    label = { Text("Order Details") },
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedBorderColor = backgroundColor,
+                                        unfocusedBorderColor = backgroundColor.copy(alpha = 0.5f),
+                                        focusedLabelColor = backgroundColor,
+                                        unfocusedLabelColor = backgroundColor.copy(alpha = 0.5f),
+                                        focusedTextColor = backgroundColor,
+                                        unfocusedTextColor = backgroundColor.copy(alpha = 0.8f)
+                                    ),
+                                    modifier = Modifier.fillMaxWidth().padding(16.dp)
+                                )
+
+                                Spacer(modifier = Modifier.height(8.dp))
+
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Button(
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = Color.Green,
+                                            contentColor = Color.White
+                                        ),
+                                        onClick = {
+                                            if (orderText.isNotBlank() && currentUser != null && customerName.isNotBlank()) {
+                                                val order = hashMapOf(
+                                                    "userId" to currentUser.uid,
+                                                    "userName" to customerName,
+                                                    "orderDetails" to orderText,
+                                                    "timestamp" to Timestamp.now()
+                                                )
+
+                                                db.collection("foodTrucks")
+                                                    .document(truckId)
+                                                    .collection("orders")
+                                                    .add(order)
+                                                    .addOnSuccessListener {
+                                                        orderSuccess = "Order sent successfully!"
+                                                        orderText = ""
+                                                        customerName = ""
+                                                        showOrderInput = false
+                                                        Toast.makeText(context, "Order sent successfully!", Toast.LENGTH_SHORT).show()
+                                                    }
+                                                    .addOnFailureListener {
+                                                        orderError = "Error sending order: ${it.message}"
+                                                    }
+                                            }
+                                        },
+                                        enabled = orderText.isNotBlank() && customerName.isNotBlank()
+                                    ) {
+                                        Text("Send Order")
+                                    }
+
+                                    Button(
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = Color.Red,
+                                            contentColor = Color.White
+                                        ),
+                                        onClick = {
+                                            showOrderInput = false
+                                            orderText = ""
+                                            customerName = ""
+                                        }
+                                    ) {
+                                        Text("Cancel")
+                                    }
+                                }
+
+                                if (orderSuccess != null) {
+                                    Text(
+                                        text = orderSuccess!!,
+                                        color = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.padding(vertical = 8.dp)
+                                    )
+                                }
+
+                                if (orderError != null) {
+                                    Text(
+                                        text = orderError!!,
+                                        color = MaterialTheme.colorScheme.error,
+                                        modifier = Modifier.padding(vertical = 8.dp)
+                                    )
+                                }
+                            }
+                        }
                     }
+
+
 
                     if (reviews.isNotEmpty()) {
                         item {
@@ -167,6 +330,28 @@ fun TruckDetailsScreen(navController: NavHostController, truckId: String) {
                                         text = "Posted on: ${formatDate(review.timestamp)}",
                                         style = MaterialTheme.typography.labelSmall
                                     )
+                                    if (isAdmin) {
+                                        Button(
+                                            colors = ButtonDefaults.buttonColors(
+                                                containerColor = Color.Red,
+                                                contentColor = Color.White
+                                            ),
+                                            onClick = {
+                                                deleteReview(
+                                                    review.reviewId,
+                                                    truckId,
+                                                    context,
+                                                    reviews,
+                                                    { newReviews -> reviews = newReviews },
+                                                    { refreshTrigger = !refreshTrigger }
+                                                )
+                                            },
+                                            modifier = Modifier.align(Alignment.End)
+                                        ) {
+                                            Text("Delete")
+                                        }
+                                    }
+
                                 }
                             }
                             Spacer(modifier = Modifier.height(8.dp))
@@ -185,11 +370,31 @@ fun TruckDetailsScreen(navController: NavHostController, truckId: String) {
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     Button(
-                        onClick = { navController.navigate(Screen.AddReview.createRoute(truckId)) },
-                        colors = ButtonDefaults.buttonColors(containerColor = backgroundColor),
+                        onClick = {
+                            if (!hasReviewed) {
+                                navController.navigate(Screen.AddReview.createRoute(truckId))
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (hasReviewed) Color.Gray else backgroundColor
+                        ),
+                        enabled = !hasReviewed,
                         modifier = Modifier.fillMaxWidth(0.7f)
                     ) {
                         Text("Add Review")
+                    }
+                    Spacer(modifier = Modifier.height(16.dp))
+                    if (isAdmin) {
+                        Button(
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color.Red,
+                                contentColor = Color.White
+                            ),
+                            onClick = { deleteFoodTruck(truckId, context, navController) },
+                            modifier = Modifier.fillMaxWidth(0.7f)
+                        ) {
+                            Text("Delete Food Truck")
+                        }
                     }
                     Spacer(modifier = Modifier.height(16.dp))
 
@@ -213,7 +418,7 @@ fun RatingStars(rating: Int) {
             Icon(
                 imageVector = Icons.Default.Star,
                 contentDescription = "Star",
-                tint = if (i <= rating) Color(0xFFFFD700) else Color.LightGray, // لون ذهبي للنجوم المملوءة
+                tint = if (i <= rating) Color(0xFFFFD700) else Color.LightGray,
                 modifier = Modifier.padding(end = 4.dp)
             )
         }
@@ -225,14 +430,56 @@ fun formatDate(timestamp: Long): String {
     return sdf.format(Date(timestamp))
 }
 
-// Data class for Review
+private fun deleteReview(
+    reviewId: String,
+    truckId: String,
+    context: Context,
+    currentReviews: List<Review>,
+    onUpdateReviews: (List<Review>) -> Unit,
+    onRefresh: () -> Unit
+) {
+    val db = FirebaseFirestore.getInstance()
+    db.collection("foodTrucks")
+        .document(truckId)
+        .collection("reviews")
+        .document(reviewId)
+        .delete()
+        .addOnSuccessListener {
+            onUpdateReviews(currentReviews.filter { it.reviewId != reviewId })
+            Toast.makeText(context, "Review deleted successfully", Toast.LENGTH_SHORT).show()
+            onRefresh()
+        }
+        .addOnFailureListener {
+            Toast.makeText(context, "Failed to delete review: ${it.message}", Toast.LENGTH_SHORT).show()
+        }
+}
+private fun deleteFoodTruck(
+    truckId: String,
+    context: Context,
+    navController: NavHostController
+) {
+    val db = FirebaseFirestore.getInstance()
+    db.collection("foodTrucks")
+        .document(truckId)
+        .delete()
+        .addOnSuccessListener {
+            Toast.makeText(context, "Food truck deleted successfully", Toast.LENGTH_SHORT).show()
+            navController.popBackStack()
+        }
+        .addOnFailureListener {
+            Toast.makeText(context, "Failed to delete: ${it.message}", Toast.LENGTH_SHORT).show()
+        }
+}
+
 data class Review(
+    val reviewId: String = "",
     val rating: Int,
     val comment: String,
-    val timestamp: Long
+    val timestamp: Long,
+    val userId: String,
+    val userName: String
 )
 
-// Data class for FoodTruck
 data class FoodTruck(
     val id: String,
     val name: String,
@@ -240,3 +487,5 @@ data class FoodTruck(
     val menu: String,
     val operatingHours: String
 )
+
+

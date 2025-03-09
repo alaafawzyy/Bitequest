@@ -13,7 +13,7 @@ android {
         applicationId = "com.example.bitequest"
         minSdk = 24
         targetSdk = 35
-        versionCode = 2
+        versionCode = 5
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
@@ -73,6 +73,9 @@ dependencies {
     implementation ("com.google.maps.android:maps-compose:2.12.0")
     implementation ("org.osmdroid:osmdroid-android:6.1.16")
     implementation ("org.osmdroid:osmdroid-mapsforge:6.1.16")
+    implementation ("androidx.compose.ui:ui:1.6.1")
+    implementation ("androidx.compose.material3:material3:1.2.0")
+    implementation ("io.coil-kt:coil-compose:2.4.0")
 
 
     implementation ("com.google.android.gms:play-services-location:21.0.1")

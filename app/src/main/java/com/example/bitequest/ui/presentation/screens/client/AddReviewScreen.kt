@@ -45,7 +45,13 @@ fun AddReviewScreen(navController: NavHostController, truckId: String) {
 
         OutlinedTextField(
             value = comment,
-            onValueChange = { comment = it },
+            onValueChange = {
+                if (it.isNotEmpty() && Character.isDigit(it.first()).not()) {
+                    comment = it
+                } else if (it.isEmpty()) {
+                    comment = it
+                }
+            },
             label = { Text("enter your review") },
             colors = OutlinedTextFieldDefaults.colors(
                 focusedBorderColor = Color(0xFF857213),
@@ -79,13 +85,12 @@ fun RatingBar(rating: Int, onRatingChanged: (Int) -> Unit) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         repeat(5) { index ->
             IconButton(onClick = {
-                // تحديث التقييم إلى رقم النجمة المحددة
                 onRatingChanged(index + 1)
             }) {
                 Icon(
                     imageVector = if (index < rating) Icons.Filled.Star else Icons.Outlined.Star,
                     contentDescription = "Star ${index + 1}",
-                    tint = if (index < rating) Color(0xFFFFD700) else Color.Gray // لون النجوم المضيئة
+                    tint = if (index < rating) Color(0xFFFFD700) else Color.Gray
                 )
             }
         }
@@ -103,7 +108,7 @@ fun saveReviewToFirestore(
     val user = FirebaseAuth.getInstance().currentUser
 
     if (user == null) {
-        Toast.makeText(context, "يجب تسجيل الدخول لإضافة تقييم!", Toast.LENGTH_SHORT).show()
+        Toast.makeText(context, "should login first", Toast.LENGTH_SHORT).show()
         return
     }
 
@@ -120,10 +125,10 @@ fun saveReviewToFirestore(
 
     db.collection("foodTrucks").document(truckId).collection("reviews").add(review)
         .addOnSuccessListener {
-            Toast.makeText(context, "تم إضافة التقييم بنجاح!", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, "review added successfully", Toast.LENGTH_SHORT).show()
             onSuccess()
         }
         .addOnFailureListener { e ->
-            Toast.makeText(context, "خطأ: ${e.message}", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, "error: ${e.message}", Toast.LENGTH_SHORT).show()
         }
 }
