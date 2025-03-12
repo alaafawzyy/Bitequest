@@ -1,6 +1,7 @@
 package com.example.bitequest.ui.presentation.screens.client
 
 import android.util.Log
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -10,6 +11,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -24,7 +26,6 @@ import java.util.Locale
 
 @Composable
 fun TruckOrdersScreen(navController: NavHostController, truckId: String?) {
-
     if (truckId.isNullOrEmpty()) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Text(text = "Invalid truck ID.", color = MaterialTheme.colorScheme.error)
@@ -36,6 +37,7 @@ fun TruckOrdersScreen(navController: NavHostController, truckId: String?) {
     var orders by remember { mutableStateOf<List<Order>>(emptyList()) }
     var loading by remember { mutableStateOf(true) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
+    val context = LocalContext.current
 
     LaunchedEffect(truckId) {
         try {
@@ -81,7 +83,6 @@ fun TruckOrdersScreen(navController: NavHostController, truckId: String?) {
         }
     }
 
-
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -125,7 +126,7 @@ fun TruckOrdersScreen(navController: NavHostController, truckId: String?) {
                         modifier = Modifier.padding(bottom = 8.dp)
                     )
                     Icon(
-                        painter = painterResource(id = R.drawable.baseline_shopping_cart_24), // تأكد من أن الأيقونة موجودة في res/drawable
+                        painter = painterResource(id = R.drawable.baseline_shopping_cart_24),
                         contentDescription = "Empty Orders",
                         tint = Color.Gray,
                         modifier = Modifier.size(48.dp)
@@ -163,6 +164,21 @@ fun TruckOrdersScreen(navController: NavHostController, truckId: String?) {
                                     text = "Time: ${formatDatee(order.timestamp)}",
                                     style = MaterialTheme.typography.bodySmall
                                 )
+                                Spacer(modifier = Modifier.height(8.dp))
+
+                                Button(
+                                    onClick = {
+                                        deleteOrder(truckId, order.id, context) { success ->
+                                            if (success) {
+                                                orders = orders.filter { it.id != order.id } // تحديث القائمة في الـ UI
+                                            }
+                                        }
+                                    },
+                                    colors = ButtonDefaults.buttonColors(containerColor = Color.Green),
+                                    modifier = Modifier.align(Alignment.End)
+                                ) {
+                                    Text("Delivered")
+                                }
                             }
                         }
                     }
@@ -172,17 +188,36 @@ fun TruckOrdersScreen(navController: NavHostController, truckId: String?) {
     }
 }
 
-// Function to format timestamps
+
+private fun deleteOrder(truckId: String, orderId: String, context: android.content.Context, onComplete: (Boolean) -> Unit) {
+    val db = FirebaseFirestore.getInstance()
+    db.collection("foodTrucks")
+        .document(truckId)
+        .collection("orders")
+        .document(orderId)
+        .delete()
+        .addOnSuccessListener {
+            Toast.makeText(context, "Order marked as delivered and removed", Toast.LENGTH_SHORT).show()
+            onComplete(true)
+        }
+        .addOnFailureListener { e ->
+            Toast.makeText(context, "Failed to remove order: ${e.message}", Toast.LENGTH_SHORT).show()
+            Log.e("FirestoreData", "Error deleting order: ${e.message}")
+            onComplete(false)
+        }
+}
+
+
 fun formatDatee(timestamp: Long): String {
     return if (timestamp > 0) {
-        val sdf = SimpleDateFormat("yyyy-MM-dd hh:mm a", Locale.getDefault()) // 🔹 استخدم hh بدل HH و a لـ AM/PM
+        val sdf = SimpleDateFormat("yyyy-MM-dd hh:mm a", Locale.getDefault())
         sdf.format(Date(timestamp))
     } else {
         "Unknown time"
     }
 }
 
-// Data class for Order
+
 data class Order(
     val id: String = "",
     val userId: String = "",
