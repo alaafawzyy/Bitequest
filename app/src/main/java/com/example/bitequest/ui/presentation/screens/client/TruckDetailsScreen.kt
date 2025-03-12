@@ -5,6 +5,7 @@ import android.util.Log
 import android.widget.Toast
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -20,7 +21,9 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 import androidx.navigation.NavHostController
+import coil.compose.AsyncImage
 import com.example.bitequest.R
 import com.example.bitequest.ui.presentation.navigation.Screen
 import com.example.bitequest.ui.theme.backgroundColor
@@ -48,10 +51,11 @@ fun TruckDetailsScreen(navController: NavHostController, truckId: String) {
     var orderError by remember { mutableStateOf<String?>(null) }
     var refreshTrigger by remember { mutableStateOf(false) }
     var isAdmin by remember { mutableStateOf(false) }
-    val context= LocalContext.current
+    var showFullImage by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+
     LaunchedEffect(currentUser) {
         if (currentUser != null) {
-
             val userDoc = db.collection("usernames")
                 .whereEqualTo("uid", currentUser.uid)
                 .get()
@@ -68,7 +72,8 @@ fun TruckDetailsScreen(navController: NavHostController, truckId: String) {
             }
         }
     }
-    LaunchedEffect(truckId, refreshTrigger) { // أضف refreshTrigger كـ key
+
+    LaunchedEffect(truckId, refreshTrigger) {
         if (truckId.isNotEmpty()) {
             try {
                 val doc = db.collection("foodTrucks").document(truckId).get().await()
@@ -81,7 +86,8 @@ fun TruckDetailsScreen(navController: NavHostController, truckId: String) {
                             doc.getDouble("longitude") ?: 0.0
                         ),
                         menu = doc.getString("menu") ?: "N/A",
-                        operatingHours = doc.getString("operatingHours") ?: "N/A"
+                        operatingHours = doc.getString("operatingHours") ?: "N/A",
+                        imageUrl = doc.getString("imageUrl") ?: ""
                     )
 
                     val reviewDocs = db.collection("foodTrucks").document(truckId).collection("reviews").get().await()
@@ -172,6 +178,50 @@ fun TruckDetailsScreen(navController: NavHostController, truckId: String) {
                             color = darkPink40,
                             modifier = Modifier.padding(8.dp)
                         )
+
+                        if (truck!!.imageUrl.isNotEmpty()) {
+                            AsyncImage(
+                                model = truck!!.imageUrl,
+                                contentDescription = "Menu Image",
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(200.dp)
+                                    .padding(8.dp)
+                                    .clickable { showFullImage = true },
+                                placeholder = painterResource(R.drawable.loading),
+                                error = painterResource(R.drawable.error)
+                            )
+                        } else {
+                            Text(
+                                text = "No image available",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Color.Gray,
+                                modifier = Modifier.padding(8.dp)
+                            )
+                        }
+
+                        if (showFullImage && truck!!.imageUrl.isNotEmpty()) {
+                            Dialog(onDismissRequest = { showFullImage = false }) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .background(Color.Black.copy(alpha = 0.8f))
+                                        .clickable { showFullImage = false }
+                                ) {
+                                    AsyncImage(
+                                        model = truck!!.imageUrl,
+                                        contentDescription = "Full Menu Image",
+                                        modifier = Modifier
+                                            .align(Alignment.Center)
+                                            .fillMaxWidth()
+                                            .fillMaxHeight(0.9f),
+                                        placeholder = painterResource(R.drawable.loading),
+                                        error = painterResource(R.drawable.error)
+                                    )
+                                }
+                            }
+                        }
+
                         Spacer(modifier = Modifier.height(8.dp))
                         Divider(color = Color.Gray, thickness = 1.dp, modifier = Modifier.padding(vertical = 8.dp))
 
@@ -184,17 +234,22 @@ fun TruckDetailsScreen(navController: NavHostController, truckId: String) {
                         )
                         Divider(color = Color.Gray, thickness = 1.dp, modifier = Modifier.padding(vertical = 8.dp))
                         Spacer(modifier = Modifier.height(8.dp))
+
                         Button(
                             colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFFFFD700),
-                            contentColor = Color.White
-                        ),
+                                containerColor = Color(0xFFFFD700),
+                                contentColor = Color.White
+                            ),
                             onClick = { showOrderInput = true },
-                            modifier = Modifier.align(Alignment.CenterHorizontally).fillMaxSize()
+                            modifier = Modifier
+                                .align(Alignment.CenterHorizontally)
+                                .fillMaxWidth()
                                 .padding(start = 20.dp, end = 20.dp)
-                                                    ) {
-                            Text("make an order")
+                        ) {
+                            Text("Make an Order")
                         }
+
+                        // الـ Order Input يظهر هنا تحت "Make an Order" مباشرة
                         if (showOrderInput) {
                             Column(
                                 modifier = Modifier
@@ -305,9 +360,56 @@ fun TruckDetailsScreen(navController: NavHostController, truckId: String) {
                                 }
                             }
                         }
+
+                        // الأزرار الثلاثة تظهر هنا بعد الـ Order Input
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 16.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Button(
+                                onClick = {
+                                    if (!hasReviewed) {
+                                        navController.navigate(Screen.AddReview.createRoute(truckId))
+                                    }
+                                },
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = if (hasReviewed) Color.Gray else backgroundColor,
+                                    contentColor = Color.White
+                                ),
+                                enabled = !hasReviewed,
+                                modifier = Modifier.fillMaxWidth(0.7f)
+                            ) {
+                                Text("Add Review")
+                            }
+                            Spacer(modifier = Modifier.height(16.dp))
+                            if (isAdmin) {
+                                Button(
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = Color.Red,
+                                        contentColor = Color.White
+                                    ),
+                                    onClick = { deleteFoodTruck(truckId, context, navController) },
+                                    modifier = Modifier.fillMaxWidth(0.7f)
+                                ) {
+                                    Text("Delete Food Truck")
+                                }
+                            }
+                            Spacer(modifier = Modifier.height(16.dp))
+
+                            Button(
+                                modifier = Modifier.fillMaxWidth(0.7f),
+                                colors = ButtonDefaults.buttonColors(containerColor = backgroundColor, contentColor = Color.White),
+
+                                onClick = { navController.popBackStack() }
+                            ) {
+                                Text("Back to Map")
+                            }
+                            Spacer(modifier = Modifier.height(16.dp))
+                        }
+                        Spacer(modifier = Modifier.height(16.dp))
                     }
-
-
 
                     if (reviews.isNotEmpty()) {
                         item {
@@ -351,10 +453,9 @@ fun TruckDetailsScreen(navController: NavHostController, truckId: String) {
                                             Text("Delete")
                                         }
                                     }
-
                                 }
                             }
-                            Spacer(modifier = Modifier.height(8.dp))
+                            Spacer(modifier = Modifier.height(20.dp))
                         }
                     } else {
                         item {
@@ -362,58 +463,19 @@ fun TruckDetailsScreen(navController: NavHostController, truckId: String) {
                         }
                     }
                 }
+                Spacer(modifier = Modifier.height(100.dp))
 
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(bottom = 16.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    Button(
-                        onClick = {
-                            if (!hasReviewed) {
-                                navController.navigate(Screen.AddReview.createRoute(truckId))
-                            }
-                        },
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = if (hasReviewed) Color.Gray else backgroundColor
-                        ),
-                        enabled = !hasReviewed,
-                        modifier = Modifier.fillMaxWidth(0.7f)
-                    ) {
-                        Text("Add Review")
-                    }
-                    Spacer(modifier = Modifier.height(16.dp))
-                    if (isAdmin) {
-                        Button(
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = Color.Red,
-                                contentColor = Color.White
-                            ),
-                            onClick = { deleteFoodTruck(truckId, context, navController) },
-                            modifier = Modifier.fillMaxWidth(0.7f)
-                        ) {
-                            Text("Delete Food Truck")
-                        }
-                    }
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    Button(
-                        modifier = Modifier.fillMaxWidth(0.7f),
-                        colors = ButtonDefaults.buttonColors(containerColor = backgroundColor),
-                        onClick = { navController.popBackStack() }
-                    ) {
-                        Text("Back to Map")
-                    }
-                }
             }
+
         }
     }
 }
+
+
+
 @Composable
 fun RatingStars(rating: Int) {
     Row {
-
         for (i in 1..5) {
             Icon(
                 imageVector = Icons.Default.Star,
@@ -424,7 +486,7 @@ fun RatingStars(rating: Int) {
         }
     }
 }
-        // Helper function to format date
+
 fun formatDate(timestamp: Long): String {
     val sdf = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
     return sdf.format(Date(timestamp))
@@ -453,6 +515,7 @@ private fun deleteReview(
             Toast.makeText(context, "Failed to delete review: ${it.message}", Toast.LENGTH_SHORT).show()
         }
 }
+
 private fun deleteFoodTruck(
     truckId: String,
     context: Context,
@@ -485,7 +548,6 @@ data class FoodTruck(
     val name: String,
     val location: LatLng,
     val menu: String,
-    val operatingHours: String
+    val operatingHours: String,
+    val imageUrl: String = ""
 )
-
-

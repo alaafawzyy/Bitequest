@@ -66,7 +66,7 @@ fun AddReviewScreen(navController: NavHostController, truckId: String) {
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        Button(colors = ButtonDefaults.buttonColors(containerColor = backgroundColor),onClick = {
+        Button(colors = ButtonDefaults.buttonColors(containerColor = backgroundColor, contentColor = Color.White),onClick = {
             if (rating > 0 && comment.isNotEmpty()) {
                 saveReviewToFirestore(truckId, rating, comment, context) {
                     navController.popBackStack()
