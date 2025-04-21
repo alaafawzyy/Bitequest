@@ -13,7 +13,7 @@ android {
         applicationId = "com.example.bitequest"
         minSdk = 24
         targetSdk = 35
-        versionCode = 7
+        versionCode = 9
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
